@@ -1,0 +1,96 @@
+from machine import I2C, Pin, PWM
+from time import sleep_ms, ticks_ms 
+import time, utime
+from hcsr04 import HCSR04
+from i2c_lcd import I2cLcd 
+
+DEFAULT_I2C_ADDR = 0x27
+
+sda=machine.Pin(8)
+scl=machine.Pin(9)
+
+i2c = machine.I2C(0, sda=sda, scl=scl, freq=400000)
+lcd = I2cLcd(i2c, DEFAULT_I2C_ADDR, 2, 16)
+
+button = Pin(14, Pin.IN, Pin.PULL_DOWN)
+
+led1 = Pin(13, Pin.OUT)
+led2 = Pin(12, Pin.OUT)
+led3 = Pin(11, Pin.OUT)
+
+ultra = HCSR04(trigger_pin=2, echo_pin=3,echo_timeout_us=1000000)
+relay = Pin(6, Pin.OUT)
+buzzer = machine.Pin(5, machine.Pin.OUT)
+
+
+buzzer.value(0)
+led1.value(0)
+led2.value(0)
+led3.value(0)
+relay.value(0)
+distance = 0
+
+
+def button_handler(pin):
+
+	print('alarm!')
+	#buzzer.value(1)
+	utime.sleep_ms(30)
+	buzzer.value(0)			
+
+button.irq(trigger=machine.Pin.IRQ_RISING, handler=button_handler)
+
+while True:
+	currentstate = button.value()
+	previous = currentstate
+	print('button:',currentstate)
+	
+	if currentstate == 1:
+		buzzer.value(0)
+		led2.value(0)
+		distance = ultra.distance_cm()
+		if distance >= 4.90:
+			distance = ultra.distance_cm()
+			#buzzer.value(0)
+			lcd.clear()
+			lcd.putstr("working")
+			print('dis1:',distance)
+			lcd.move_to(0,1)
+			lcd.putstr(str(distance)+' cm')
+			led1.value(1)
+			led2.value(0)
+			led3.value(0)
+			relay.value(1)
+			utime.sleep_ms(100)
+			if distance >= 15:
+				led1.value(1)
+				led2.value(1)
+				led3.value(0)
+			else:
+				led1.value(1)
+				led2.value(0)
+				led3.value(0)
+		
+		else:
+			relay.value(0)
+			buzzer.toggle()
+			led2.value(0)
+			led3.toggle()
+			lcd.clear()
+			lcd.putstr("water full!")
+			lcd.move_to(0,1)
+			lcd.putstr(str(distance)+' cm')
+			#utime.sleep_ms(100)
+			
+	else:
+		relay.value(0)
+		buzzer.value(0)
+		led1.toggle()
+		led2.value(0)
+		led3.value(0)
+		lcd.clear()
+		lcd.putstr("stop!")
+		lcd.move_to(0,1)
+		lcd.putstr("please switch on")
+		#print("stop! press button to work : ",currentstate)
+		utime.sleep_ms(200)
